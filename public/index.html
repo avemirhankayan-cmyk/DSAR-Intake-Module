@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Privacy Rights Intake Module</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="layout">
+      <section class="panel intake">
+        <h1>Privacy Rights Intake Module</h1>
+        <p class="subtitle">Demo only. Use synthetic data. Do not enter real personal information.</p>
+
+        <form id="intake-form">
+          <label for="state"><strong>Which state do you reside in?</strong></label>
+          <select id="state" name="state" required>
+            <option value="">Select a state</option>
+          </select>
+
+          <fieldset class="context-box">
+            <legend><strong>What type of organization is this request about?</strong></legend>
+            <p class="rights-help">State rights are always included. Select any federal contexts that apply.</p>
+            <label class="checkbox-row" for="context-state">
+              <input id="context-state" type="checkbox" checked disabled />
+              <span>State privacy rights (always included)</span>
+            </label>
+            <label class="checkbox-row" for="context-hipaa">
+              <input id="context-hipaa" type="checkbox" name="entity_types" value="hipaa" />
+              <span>Health (HIPAA)</span>
+            </label>
+            <label class="checkbox-row" for="context-glba">
+              <input id="context-glba" type="checkbox" name="entity_types" value="glba" />
+              <span>Financial institution (GLBA)</span>
+            </label>
+            <label class="checkbox-row" for="context-fcra">
+              <input id="context-fcra" type="checkbox" name="entity_types" value="fcra" />
+              <span>Credit reporting or background checks (FCRA)</span>
+            </label>
+            <label class="checkbox-row" for="context-ferpa">
+              <input id="context-ferpa" type="checkbox" name="entity_types" value="ferpa" />
+              <span>School or university records (FERPA)</span>
+            </label>
+            <label class="checkbox-row" for="context-coppa">
+              <input id="context-coppa" type="checkbox" name="entity_types" value="coppa" />
+              <span>Child-directed online service (COPPA)</span>
+            </label>
+            <label class="checkbox-row" for="context-all">
+              <input id="context-all" type="checkbox" />
+              <span>All federal rights together</span>
+            </label>
+          </fieldset>
+
+          <div class="rights-box">
+            <h2>Your privacy options</h2>
+            <p id="rights-meta" class="rights-meta"></p>
+            <p class="rights-help">Tick all rights that match this request.</p>
+            <div id="rights-list" class="rights-checklist">
+              <div class="rights-placeholder">Select a state to view your options.</div>
+            </div>
+          </div>
+
+          <fieldset class="context-box">
+            <legend><strong>In your opinion which PII does the company have about you?</strong></legend>
+            <p class="rights-help">Select all that apply.</p>
+            <div id="pii-list" class="rights-checklist">
+              <div class="rights-placeholder">Loading PII options...</div>
+            </div>
+          </fieldset>
+
+          <button class="submit" type="submit">Submit Request</button>
+        </form>
+        <p id="submit-status" class="submit-status"></p>
+      </section>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>

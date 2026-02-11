@@ -1,0 +1,21 @@
+{
+  "name": "privacy-rights-intake-module",
+  "version": "1.0.0",
+  "description": "Demo Privacy Rights Intake Module for US consumers",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": [
+    "privacy",
+    "ccpa",
+    "vcdpa",
+    "intake"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.21.2"
+  }
+}

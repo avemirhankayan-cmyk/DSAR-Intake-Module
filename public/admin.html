@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Admin Dashboard - Privacy Intake</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="admin-layout">
+      <section class="panel">
+        <h1>Admin Dashboard</h1>
+        <p class="subtitle">Admin access only. No email sending. Demo uses in-memory synthetic data.</p>
+
+        <div class="admin-toolbar">
+          <input id="admin-key" type="password" placeholder="Enter admin key" />
+          <button id="unlock">Unlock Dashboard</button>
+          <button id="refresh">Refresh</button>
+          <button id="lock">Lock</button>
+        </div>
+
+        <p id="admin-status">Enter admin key to load submissions.</p>
+        <pre id="admin-latest">No submissions loaded.</pre>
+        <div id="history"></div>
+      </section>
+    </main>
+
+    <script src="admin.js"></script>
+  </body>
+</html>
