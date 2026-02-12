@@ -296,7 +296,6 @@ form.addEventListener("submit", async (event) => {
   const payload = {
     State: state,
     Entity_Types: entityTypes,
-    Category: inferCategoryFromRights(selectedRights),
     Selected_Rights: selectedRights,
     PII_Items: selectedPiiItems,
     User_Intent: `Structured request based on selected rights and PII. Rights: ${selectedRights.join(
