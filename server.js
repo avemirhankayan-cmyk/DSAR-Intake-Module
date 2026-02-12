@@ -1,11 +1,19 @@
 const express = require("express");
 const path = require("path");
+const fs = require("fs/promises");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || "127.0.0.1";
 const ADMIN_KEY = process.env.ADMIN_KEY || "demo-admin-key";
+const ACTUAL_PII_PROVIDER_URL = process.env.ACTUAL_PII_PROVIDER_URL || "";
+const ACTUAL_PII_PROVIDER_TOKEN = process.env.ACTUAL_PII_PROVIDER_TOKEN || "";
+const ACTUAL_PII_PROVIDER_TIMEOUT_MS = Number(process.env.ACTUAL_PII_PROVIDER_TIMEOUT_MS || 4000);
+const ACTUAL_PII_STORE_PATH =
+  process.env.ACTUAL_PII_STORE_PATH || path.join(__dirname, "data", "actual_pii_store.json");
 const submissions = [];
+let actualPiiStoreLoaded = false;
+let actualPiiStore = {};
 
 const CA_RIGHTS = [
   "See what info you have about me",
@@ -457,6 +465,93 @@ function normalizePiiItems(value) {
   );
 }
 
+async function ensureActualPiiStoreLoaded() {
+  if (actualPiiStoreLoaded) {
+    return;
+  }
+
+  try {
+    const raw = await fs.readFile(ACTUAL_PII_STORE_PATH, "utf8");
+    const parsed = JSON.parse(raw);
+    actualPiiStore = parsed && typeof parsed === "object" ? parsed : {};
+  } catch (_err) {
+    actualPiiStore = {};
+  }
+
+  actualPiiStoreLoaded = true;
+}
+
+async function persistActualPiiStore() {
+  await fs.mkdir(path.dirname(ACTUAL_PII_STORE_PATH), { recursive: true });
+  await fs.writeFile(ACTUAL_PII_STORE_PATH, JSON.stringify(actualPiiStore, null, 2), "utf8");
+}
+
+function extractActualPiiFromPayload(payload) {
+  if (!payload || typeof payload !== "object") {
+    return null;
+  }
+
+  const candidates = [payload.actualPiiItems, payload.Actual_PII_Items, payload.items];
+  const found = candidates.find((item) => Array.isArray(item));
+  if (!found) {
+    return null;
+  }
+
+  return normalizePiiItems(found);
+}
+
+async function fetchActualPiiFromProvider(submission) {
+  if (!ACTUAL_PII_PROVIDER_URL) {
+    return null;
+  }
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), ACTUAL_PII_PROVIDER_TIMEOUT_MS);
+
+  try {
+    const headers = {
+      "Content-Type": "application/json"
+    };
+    if (ACTUAL_PII_PROVIDER_TOKEN) {
+      headers.Authorization = "Bearer " + ACTUAL_PII_PROVIDER_TOKEN;
+    }
+
+    const response = await fetch(ACTUAL_PII_PROVIDER_URL, {
+      method: "POST",
+      headers,
+      signal: controller.signal,
+      body: JSON.stringify({
+        requestId: submission.Id,
+        state: submission.State,
+        subjectReference: submission.Subject_Reference || "",
+        category: submission.Category,
+        forecastPiiItems: submission.PII_Items || [],
+        selectedRights: submission.Selected_Rights || []
+      })
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const payload = await response.json();
+    return extractActualPiiFromPayload(payload);
+  } catch (_err) {
+    return null;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+async function getActualPiiItemsForSubmission(submission) {
+  const externalResult = await fetchActualPiiFromProvider(submission);
+  if (externalResult !== null) {
+    return externalResult;
+  }
+
+  await ensureActualPiiStoreLoaded();
+  return normalizePiiItems(actualPiiStore[submission.Id] || []);
+}
 function requireAdmin(req, res, next) {
   const providedKey = req.get("x-admin-key");
   if (!providedKey || providedKey !== ADMIN_KEY) {
@@ -738,6 +833,10 @@ app.post("/api/submissions", async (req, res) => {
   const state = normalizeText(req.body?.State || req.body?.state, 80);
   const requestedCategory = normalizeText(req.body?.Category || req.body?.category, 160);
   const userIntent = normalizeText(req.body?.User_Intent || req.body?.user_intent || req.body?.intent, 4000);
+  const subjectReference = normalizeText(
+    req.body?.Subject_Reference || req.body?.subject_reference || req.body?.subjectReference,
+    200
+  );
   const entityTypes = normalizeEntityTypes(
     req.body?.Entity_Types ||
       req.body?.entity_types ||
@@ -778,6 +877,7 @@ app.post("/api/submissions", async (req, res) => {
   const submission = {
     Id: `REQ-${Date.now()}`,
     State: state,
+    Subject_Reference: subjectReference,
     Entity_Types: profile.entityTypes,
     Entity_Labels: profile.entityLabels,
     Entity_Type: profile.entityType,
@@ -800,11 +900,44 @@ app.post("/api/submissions", async (req, res) => {
   return res.status(201).json({ ok: true, id: submission.Id, submission });
 });
 
-app.get("/api/admin/submissions", requireAdmin, (req, res) => {
+app.get("/api/admin/submissions", requireAdmin, async (req, res) => {
+  const enriched = await Promise.all(
+    submissions.map(async (entry) => ({
+      ...entry,
+      Actual_PII_Items: await getActualPiiItemsForSubmission(entry)
+    }))
+  );
+
   return res.json({
-    count: submissions.length,
-    submissions
+    count: enriched.length,
+    submissions: enriched
   });
+});
+
+app.post("/api/admin/submissions/:id/actual-pii", requireAdmin, async (req, res) => {
+  const id = normalizeText(req.params.id, 80);
+  const rawItems =
+    req.body?.Actual_PII_Items ?? req.body?.actual_pii_items ?? req.body?.actualPiiItems;
+
+  if (!Array.isArray(rawItems)) {
+    return res.status(400).json({ error: "Actual_PII_Items must be an array" });
+  }
+
+  const normalizedItems = normalizePiiItems(rawItems);
+  if (rawItems.length > 0 && normalizedItems.length === 0) {
+    return res.status(400).json({ error: "No valid PII items were provided" });
+  }
+
+  const target = submissions.find((entry) => entry.Id === id);
+  if (!target) {
+    return res.status(404).json({ error: "Submission not found" });
+  }
+
+  await ensureActualPiiStoreLoaded();
+  actualPiiStore[id] = normalizedItems;
+  await persistActualPiiStore();
+
+  return res.json({ ok: true, id, Actual_PII_Items: normalizedItems });
 });
 
 app.get("/admin", (_req, res) => {
