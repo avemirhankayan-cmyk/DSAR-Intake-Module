@@ -8,6 +8,9 @@ const historyEl = document.getElementById("history");
 
 const SESSION_KEY = "privacy_admin_key";
 let adminKey = sessionStorage.getItem(SESSION_KEY) || "";
+
+// Demo fallback "source of truth" list used when the backend hasn't been configured
+// to attach Actual_PII_Items yet.
 const COMPANY_MASTER_PII = [
   "First name",
   "Last name",
@@ -23,31 +26,38 @@ if (adminKey) {
 
 /**
  * Calculates the Transparency Score (The "Quant" Gap Analysis)
- * @param {Array} userForecast - The PII_Items the user selected in the form
- * @param {Array} actualData - The PII the company actually holds (The "Source of Truth")
- * @returns {Object} - The score and a descriptive summary
+ * @param {Array} userForecast - The PII items the user selected in the form
+ * @param {Array} actualData - The PII the company actually holds (the "source of truth")
+ * @returns {Object} - score/status plus a short summary
  */
 function calculateTransparencyScore(userForecast, actualData) {
-  if (!userForecast || !actualData || actualData.length === 0) return { score: 0, status: "N/A" };
+  const normalizedForecast = Array.isArray(userForecast) ? userForecast : [];
+  const normalizedActual = Array.isArray(actualData) ? actualData : [];
 
-  // 1. Identify "Matches" (User was right)
-  const matches = userForecast.filter((item) => actualData.includes(item));
+  if (normalizedActual.length === 0) {
+    return {
+      score: null,
+      status: "N/A",
+      matches: [],
+      paranoia: normalizedForecast,
+      gaps: [],
+      summary: "Transparency score: N/A (no actual stored PII provided yet)."
+    };
+  }
 
-  // 2. Identify "Misses" (User thought you had it, but you don't)
-  const userParanoia = userForecast.filter((item) => !actualData.includes(item));
+  const matches = normalizedForecast.filter((item) => normalizedActual.includes(item));
+  const userParanoia = normalizedForecast.filter((item) => !normalizedActual.includes(item));
+  const transparencyGaps = normalizedActual.filter((item) => !normalizedForecast.includes(item));
 
-  // 3. Identify "Surprises" (Company has it, but user didn't know)
-  const transparencyGaps = actualData.filter((item) => !userForecast.includes(item));
-
-  // 4. Calculate the Score (Percentage of correct guesses vs Total actual data)
-  const score = Math.round((matches.length / actualData.length) * 100);
+  const score = Math.round((matches.length / normalizedActual.length) * 100);
 
   return {
-    score: score,
-    matches: matches,
+    score,
+    status: "OK",
+    matches,
     paranoia: userParanoia,
     gaps: transparencyGaps,
-    summary: `User perception is ${score}% accurate. Found ${transparencyGaps.length} transparency gaps.`
+    summary: `Transparency score: ${score}%. Found ${transparencyGaps.length} transparency gaps.`
   };
 }
 
@@ -59,15 +69,20 @@ function renderHistory(submissions) {
   }
 
   adminLatest.textContent = JSON.stringify(submissions[0], null, 2);
+
   historyEl.innerHTML = submissions
     .map((entry, idx) => {
-      // INTEGRATION: Inside your renderHistory function, you can call it like this:
-      // const actualStoredPII = ["First name", "Email address", "IP address"]; // Fetch this from your DB
-      // const analysis = calculateTransparencyScore(entry.PII_Items, actualStoredPII);
-      // console.log(analysis.summary);
-      const actualStoredPII = Array.isArray(entry.Actual_PII_Items) ? entry.Actual_PII_Items : COMPANY_MASTER_PII;
+      // If the backend attached actual PII, prefer it.
+      // Otherwise, fall back to a demo list so the UI doesn't show "undefined".
+      const actualStoredPII =
+        Array.isArray(entry.Actual_PII_Items) && entry.Actual_PII_Items.length > 0
+          ? entry.Actual_PII_Items
+          : COMPANY_MASTER_PII;
+
       const analysis = calculateTransparencyScore(entry.PII_Items || [], actualStoredPII);
-      return `<div class="history-item"><strong>#${idx + 1}</strong> ${entry.State} | ${entry.Category} | ${new Date(entry.Timestamp).toLocaleString()} | ${entry.Id}<br>${analysis.summary}</div>`;
+      const summary = analysis && analysis.summary ? analysis.summary : "Transparency score: N/A.";
+
+      return `<div class="history-item"><strong>#${idx + 1}</strong> ${entry.State} | ${entry.Category} | ${new Date(entry.Timestamp).toLocaleString()} | ${entry.Id}<br>${summary}</div>`;
     })
     .join("");
 }
