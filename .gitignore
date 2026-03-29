@@ -1,2 +1,13 @@
 # macOS
 .DS_Store
+
+# THE LEGAL QUANT SECURITY ZONE
+# Ignore the local data store (Actual PII)
+data/
+actual_pii_store.json
+
+# Ignore environment variables (API Keys)
+.env
+
+# Ignore node modules (The engine)
+node_modules/
