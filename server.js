@@ -1,3 +1,9 @@
+// Add this right after your 'const' declarations
+if (!process.env.OPENAI_API_KEY || !process.env.ADMIN_KEY) {
+  console.warn("⚠️ WARNING: Environment variables are missing.");
+  console.warn("The app will run, but LLM features and Admin security will be disabled.");
+  // Optional: process.exit(1); // Un-comment this to force the app to stop entirely
+}
 const express = require("express");
 const path = require("path");
 const fs = require("fs/promises");
